@@ -74,3 +74,77 @@ print("S3 Input URI:", input_data_uri)
 print("S3 Output Prefix:", output_prefix)
 print("IAM Role:", role)
 
+# 2. Procesamiento y EDA
+#Se crea un script (por ejemplo, eda_script.py) que realiza:
+
+#Lectura del dataset desde S3.
+
+#Análisis exploratorio (reporte descriptivo, histogramas, frecuencias).
+
+#Transformación de datos (por ejemplo, one-hot encoding).
+
+#El script se genera usando una celda del Notebook:
+%%writefile eda_script.py
+import argparse
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+def main(input_data, output_data):
+    csv_file = os.path.join(input_data, "TestPad_PCB_XYRGB_V2.csv")
+    print(f"Leyendo archivo: {csv_file}")
+    
+    try:
+        df = pd.read_csv(csv_file)
+    except Exception as e:
+        print("Error al leer el CSV:", e)
+        return
+
+    pd.set_option('display.max_columns', 500)
+    pd.set_option('display.max_rows', 20)
+    
+    reporte = []
+    reporte.append("=== INFORMACIÓN BÁSICA ===")
+    reporte.append(f"Forma del dataset: {df.shape}")
+    reporte.append(f"Columnas: {df.columns.tolist()}")
+    reporte.append("Tipos de datos:\n" + str(df.dtypes))
+    reporte.append("Primeras 5 filas:\n" + str(df.head()))
+    try:
+        reporte.append("Estadísticas descriptivas:\n" + str(df.describe()))
+    except Exception as e:
+        reporte.append("No se pudieron calcular estadísticas descriptivas: " + str(e))
+    
+    cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+    if cat_cols:
+        reporte.append("\n=== FRECUENCIAS DE COLUMNAS CATEGÓRICAS ===")
+        for col in cat_cols:
+            counts = df[col].value_counts(normalize=True)
+            reporte.append(f"Frecuencias para '{col}':\n{counts}")
+    
+    output_report = os.path.join(output_data, "EDA_Report.txt")
+    with open(output_report, "w") as f:
+        f.write("\n\n".join(reporte))
+    print(f"Reporte guardado en: {output_report}")
+    
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    for col in num_cols:
+        plt.figure()
+        df[col].hist(bins=30)
+        plt.title(f"Histograma de {col}")
+        plt.xlabel(col)
+        plt.ylabel("Frecuencia")
+        hist_path = os.path.join(output_data, f"{col}_histogram.png")
+        plt.savefig(hist_path)
+        plt.close()
+        print(f"Histograma guardado para {col} en: {hist_path}")
+    
+    print("Análisis EDA completado.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input-data", type=str, default="/opt/ml/processing/input")
+    parser.add_argument("--output-data", type=str, default="/opt/ml/processing/output")
+    args = parser.parse_args()
+    main(args.input_data, args.output_data)
+
